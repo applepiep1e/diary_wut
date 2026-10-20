@@ -11,14 +11,12 @@ if(!isset($_SESSION['uid']) || $_SESSION['role'] !== 'admin'){
     exit;
 }
 $msg = "";
-
 // ========== 新增：添加用户逻辑 ==========
 if(isset($_POST['add_user_submit'])){
     $newUsername = trim($_POST['add_username']);
     $newRole = $_POST['add_role'];
     $newPwdRaw = "123456"; //新建用户默认密码123456
     $hashPwd = password_hash($newPwdRaw, PASSWORD_DEFAULT);
-
     //简单校验用户名非空
     if(empty($newUsername)){
         $msg = "❌ Username cannot be empty!";
@@ -28,7 +26,6 @@ if(isset($_POST['add_user_submit'])){
         $msg = "✅ New user created, default password:123456";
     }
 }
-
 // 删除用户逻辑
 if(isset($_POST['delete_user_id'])){
     $delUid = (int)$_POST['delete_user_id'];
@@ -55,14 +52,14 @@ if(isset($_POST['edit_user_submit'])){
         $msg = "✅ User info updated.";
     }
 }
-// 重置用户密码
-if(isset($_POST['reset_pwd_submit'])){
-    $resetUid = (int)$_POST['reset_uid'];
-    $newPwd = "123456"; // 重置默认密码
-    $hashPwd = password_hash($newPwd, PASSWORD_DEFAULT);
+// ========= 修改密码（自定义密码，用于注入测试） =========
+if(isset($_POST['change_pwd_submit'])){
+    $pwdUid = (int)$_POST['pwd_uid'];
+    $inputPwd = trim($_POST['input_new_pwd']);
+    $hashPwd = password_hash($inputPwd, PASSWORD_DEFAULT);
     $stmtReset = $pdo->prepare("UPDATE users SET password=? WHERE id=?");
-    $stmtReset->execute([$hashPwd, $resetUid]);
-    $msg = "✅ Password reset to 123456";
+    $stmtReset->execute([$hashPwd, $pwdUid]);
+    $msg = "✅ Password updated";
 }
 // 获取全部用户，附带last_login
 $stmtUsers = $pdo->query("SELECT id, username, role, last_login FROM users");
@@ -112,11 +109,8 @@ $allDiaries = $stmtAllDiaries->fetchAll();
     <td>
         <!-- Edit Button，弹窗简单编辑表单 -->
         <button onclick="showEditForm(<?=$u['id']?>, '<?=htmlspecialchars($u['username'])?>', '<?=$u['role']?>')">Edit</button>
-        <!-- Reset Password -->
-        <form method="post" style="display:inline" onsubmit="return confirm('Reset password to 123456?')">
-            <input type="hidden" name="reset_uid" value="<?=$u['id']?>">
-            <button type="submit" name="reset_pwd_submit">ResetPwd</button>
-        </form>
+        <!-- Change Password 自定义密码按钮 -->
+        <button onclick="showPwdForm(<?=$u['id']?>)">ChangePwd</button>
         <!-- Delete form -->
         <form method="post" style="display:inline" onsubmit="return confirm('Confirm delete this user? All diaries/comments of this user will be removed!')">
             <input type="hidden" name="delete_user_id" value="<?=$u['id']?>">
@@ -159,6 +153,18 @@ $allDiaries = $stmtAllDiaries->fetchAll();
     <button type="button" onclick="document.getElementById('editModal').style.display='none'">Cancel</button>
 </form>
 </div>
+
+<!-- 修改密码弹窗 -->
+<div id="pwdModal" style="display:none; border:1px solid black; padding:10px; margin:10px 0;">
+<h3>Change User Password</h3>
+<form method="post">
+    <input type="hidden" name="pwd_uid" id="pwd_uid">
+    New Password: <input type="text" name="input_new_pwd" id="input_new_pwd" required><br><br>
+    <button type="submit" name="change_pwd_submit">Update Password</button>
+    <button type="button" onclick="document.getElementById('pwdModal').style.display='none'">Cancel</button>
+</form>
+</div>
+
 <script>
 function showEditForm(uid, uname, role){
     document.getElementById('editModal').style.display='block';
@@ -170,6 +176,12 @@ function showEditForm(uid, uname, role){
 function showAddForm(){
     document.getElementById('addModal').style.display='block';
     document.getElementById('add_username').value = '';
+}
+// 打开修改密码弹窗
+function showPwdForm(uid){
+    document.getElementById('pwdModal').style.display='block';
+    document.getElementById('pwd_uid').value = uid;
+    document.getElementById('input_new_pwd').value = '';
 }
 </script>
 <hr>
@@ -194,3 +206,4 @@ function showAddForm(){
 <?php endif; ?>
 </body>
 </html>
+
