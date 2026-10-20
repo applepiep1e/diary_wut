@@ -1,0 +1,60 @@
+<?php
+if (!extension_loaded('uopz')) {
+    return;
+}
+$logFile = '/tmp/sql_hook.log';
+// 全局哈希：PDOStatement实例 => SQL模板
+$stmtSqlMap = [];
+
+// 劫持 PDO::prepare
+uopz_set_hook(PDO::class, 'prepare', function ($sql, $options = []) use (&$stmtSqlMap, $logFile) {
+    $time = date('Y-m-d H:i:s');
+    $uri = $_SERVER['REQUEST_URI'] ?? "CLI";
+    $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS,3);
+
+    $log  = "===== PREPARE =====\n";
+    $log .= "Time: {$time}\n";
+    $log .= "URI: {$uri}\n";
+    $log .= "SQL Template: {$sql}\n";
+    $log .= "CallStack: " . print_r($backtrace,true) . "\n";
+    $log .= "POST: " . print_r($_POST, true) . "\n";
+    $log .= "-------------------\n";
+    file_put_contents($logFile, $log, FILE_APPEND | LOCK_EX);
+
+    // 拿到prepare返回的PDOStatement对象，存入映射
+    /** @var PDOStatement $stmtObj */
+    $stmtObj = call_user_func_array([$this, 'prepare'], func_get_args());
+    $key = spl_object_id($stmtObj);
+    $stmtSqlMap[$key] = $sql;
+});
+
+// 劫持 PDO::query
+uopz_set_hook(PDO::class, 'query', function ($sql) use ($logFile) {
+    $time = date('Y-m-d H:i:s');
+    $uri = $_SERVER['REQUEST_URI'] ?? "CLI";
+    $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS,3);
+
+    $log  = "===== PDO::query =====\n";
+    $log .= "Time: {$time}\n";
+    $log .= "URI: {$uri}\n";
+    $log .= "SQL: {$sql}\n";
+    $log .= "CallStack: " . print_r($backtrace,true) . "\n";
+    $log .= "POST: " . print_r($_POST, true) . "\n";
+    $log .= "-------------------\n";
+    file_put_contents($logFile, $log, FILE_APPEND | LOCK_EX);
+});
+
+// 劫持 PDOStatement::execute
+uopz_set_hook(PDOStatement::class, 'execute', function ($params = null) use (&$stmtSqlMap, $logFile) {
+    $time = date('Y-m-d H:i:s');
+    $stmtId = spl_object_id($this);
+    $sqlTpl = isset($stmtSqlMap[$stmtId]) ? $stmtSqlMap[$stmtId] : 'UNKNOWN_SQL';
+
+    $log  = "===== EXECUTE =====\n";
+    $log .= "Time: {$time}\n";
+    $log .= "SQL Template: {$sqlTpl}\n";
+    $log .= "Bind Params: " . print_r($params, true) . "\n";
+    $log .= "-------------------\n\n";
+    file_put_contents($logFile, $log, FILE_APPEND | LOCK_EX);
+});
+

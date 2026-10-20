@@ -1,0 +1,48 @@
+<?php
+if (!extension_loaded('uopz')) {
+    return;
+}
+$logFile = '/tmp/sql_hook.log';
+
+// 捕获 prepare，拿到SQL模板
+uopz_set_hook(PDO::class, 'prepare', function ($sql, $options = []) use ($logFile) {
+    $time = date('Y-m-d H:i:s');
+    $uri = $_SERVER['REQUEST_URI'] ?? "CLI";
+    $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
+
+    $log  = "===== PREPARE =====\n";
+    $log .= "Time: {$time}\n";
+    $log .= "URI: {$uri}\n";
+    $log .= "SQL Template: {$sql}\n";
+    $log .= "CallStack: " . print_r($backtrace,true) . "\n";
+    $log .= "POST: " . print_r($_POST, true) . "\n";
+    $log .= "-------------------\n";
+    file_put_contents($logFile, $log, FILE_APPEND | LOCK_EX);
+});
+
+// 捕获 query 直接执行的SQL
+uopz_set_hook(PDO::class, 'query', function ($sql) use ($logFile) {
+    $time = date('Y-m-d H:i:s');
+    $uri = $_SERVER['REQUEST_URI'] ?? "CLI";
+    $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
+
+    $log  = "===== PDO::query =====\n";
+    $log .= "Time: {$time}\n";
+    $log .= "URI: {$uri}\n";
+    $log .= "SQL: {$sql}\n";
+    $log .= "CallStack: " . print_r($backtrace,true) . "\n";
+    $log .= "POST: " . print_r($_POST, true) . "\n";
+    $log .= "-------------------\n";
+    file_put_contents($logFile, $log, FILE_APPEND | LOCK_EX);
+});
+
+// 捕获 execute 的绑定参数
+uopz_set_hook(PDOStatement::class, 'execute', function ($params = null) use ($logFile) {
+    $time = date('Y-m-d H:i:s');
+    $log  = "===== EXECUTE PARAMS =====\n";
+    $log .= "Time: {$time}\n";
+    $log .= "Bind Params: " . print_r($params, true) . "\n";
+    $log .= "-------------------\n\n";
+    file_put_contents($logFile, $log, FILE_APPEND | LOCK_EX);
+});
+

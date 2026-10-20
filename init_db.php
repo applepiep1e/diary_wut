@@ -51,4 +51,3 @@ $userPwd = password_hash('alice123', PASSWORD_DEFAULT);
 $pdo->exec("INSERT IGNORE INTO users(username,password,role) VALUES ('admin','$adminPwd','admin'),('alice','$userPwd','user')");
 
 echo "✅ 数据表重建完成，users表增加last_login字段";
-

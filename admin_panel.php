@@ -5,13 +5,29 @@ $dbuser='root';
 $dbpass='root123';
 $pdo = new PDO($dsn,$dbuser,$dbpass);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
 // 权限校验：必须登录且角色为admin
 if(!isset($_SESSION['uid']) || $_SESSION['role'] !== 'admin'){
     header("Location: admin_login.php");
     exit;
 }
 $msg = "";
+
+// ========== 新增：添加用户逻辑 ==========
+if(isset($_POST['add_user_submit'])){
+    $newUsername = trim($_POST['add_username']);
+    $newRole = $_POST['add_role'];
+    $newPwdRaw = "123456"; //新建用户默认密码123456
+    $hashPwd = password_hash($newPwdRaw, PASSWORD_DEFAULT);
+
+    //简单校验用户名非空
+    if(empty($newUsername)){
+        $msg = "❌ Username cannot be empty!";
+    }else{
+        $stmtAdd = $pdo->prepare("INSERT INTO users (username, password, role, last_login) VALUES (?, ?, ?, NULL)");
+        $stmtAdd->execute([$newUsername, $hashPwd, $newRole]);
+        $msg = "✅ New user created, default password:123456";
+    }
+}
 
 // 删除用户逻辑
 if(isset($_POST['delete_user_id'])){
@@ -25,7 +41,6 @@ if(isset($_POST['delete_user_id'])){
         $msg = "✅ User deleted successfully.";
     }
 }
-
 // 编辑用户提交逻辑
 if(isset($_POST['edit_user_submit'])){
     $editUid = (int)$_POST['edit_uid'];
@@ -40,7 +55,6 @@ if(isset($_POST['edit_user_submit'])){
         $msg = "✅ User info updated.";
     }
 }
-
 // 重置用户密码
 if(isset($_POST['reset_pwd_submit'])){
     $resetUid = (int)$_POST['reset_uid'];
@@ -50,11 +64,9 @@ if(isset($_POST['reset_pwd_submit'])){
     $stmtReset->execute([$hashPwd, $resetUid]);
     $msg = "✅ Password reset to 123456";
 }
-
 // 获取全部用户，附带last_login
 $stmtUsers = $pdo->query("SELECT id, username, role, last_login FROM users");
 $allUsers = $stmtUsers->fetchAll();
-
 // 获取系统全部日记（私有+公开，全部用户）
 $stmtAllDiaries = $pdo->query("
     SELECT d.*, u.username
@@ -79,8 +91,10 @@ $allDiaries = $stmtAllDiaries->fetchAll();
     <a href="logout.php">Logout</a>
 </p>
 <hr>
-
 <h2>User Management List（Show last login time）</h2>
+<!-- ========== 新增添加用户按钮 ========== -->
+<button onclick="showAddForm()">➕ Add New User</button>
+<br><br>
 <table border="1" cellpadding="6">
 <tr>
     <th>User ID</th>
@@ -98,13 +112,11 @@ $allDiaries = $stmtAllDiaries->fetchAll();
     <td>
         <!-- Edit Button，弹窗简单编辑表单 -->
         <button onclick="showEditForm(<?=$u['id']?>, '<?=htmlspecialchars($u['username'])?>', '<?=$u['role']?>')">Edit</button>
-
         <!-- Reset Password -->
         <form method="post" style="display:inline" onsubmit="return confirm('Reset password to 123456?')">
             <input type="hidden" name="reset_uid" value="<?=$u['id']?>">
             <button type="submit" name="reset_pwd_submit">ResetPwd</button>
         </form>
-
         <!-- Delete form -->
         <form method="post" style="display:inline" onsubmit="return confirm('Confirm delete this user? All diaries/comments of this user will be removed!')">
             <input type="hidden" name="delete_user_id" value="<?=$u['id']?>">
@@ -114,6 +126,22 @@ $allDiaries = $stmtAllDiaries->fetchAll();
 </tr>
 <?php endforeach; ?>
 </table>
+
+<!-- 新增：添加用户弹窗 -->
+<div id="addModal" style="display:none; border:1px solid black; padding:10px; margin:10px 0;">
+<h3>Add New User</h3>
+<form method="post">
+    Username: <input type="text" name="add_username" id="add_username" required><br><br>
+    Role:
+    <select name="add_role">
+        <option value="user">user</option>
+        <option value="admin">admin</option>
+    </select>
+    <br><br>
+    <button type="submit" name="add_user_submit">Create User</button>
+    <button type="button" onclick="document.getElementById('addModal').style.display='none'">Cancel</button>
+</form>
+</div>
 
 <!-- 编辑弹窗表单 -->
 <div id="editModal" style="display:none; border:1px solid black; padding:10px; margin:10px 0;">
@@ -131,7 +159,6 @@ $allDiaries = $stmtAllDiaries->fetchAll();
     <button type="button" onclick="document.getElementById('editModal').style.display='none'">Cancel</button>
 </form>
 </div>
-
 <script>
 function showEditForm(uid, uname, role){
     document.getElementById('editModal').style.display='block';
@@ -139,9 +166,13 @@ function showEditForm(uid, uname, role){
     document.getElementById('edit_username').value = uname;
     document.getElementById('edit_role').value = role;
 }
+// 新增js：打开新增用户弹窗
+function showAddForm(){
+    document.getElementById('addModal').style.display='block';
+    document.getElementById('add_username').value = '';
+}
 </script>
 <hr>
-
 <h2>All Diaries in System (Admin can view all private & public)</h2>
 <?php if(empty($allDiaries)): ?>
 <p>No diary exists in system.</p>
@@ -163,4 +194,3 @@ function showEditForm(uid, uname, role){
 <?php endif; ?>
 </body>
 </html>
-
